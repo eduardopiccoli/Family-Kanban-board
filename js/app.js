@@ -652,6 +652,346 @@ const App = {
                 }
             }
         });
+
+        // === Google Sheets Import ===
+        document.getElementById('import-sheets-btn').addEventListener('click', () => {
+            const type = document.getElementById('import-sheets-type').value;
+            const rawData = document.getElementById('import-sheets-data').value.trim();
+
+            if (!rawData) {
+                this.showToast('❌ Cole os dados da planilha primeiro.', 'error');
+                return;
+            }
+
+            const result = this.importFromSheets(type, rawData);
+            if (result.success) {
+                this.showToast(`✅ ${result.count} ${type === 'children' ? 'crianças' : type === 'tasks' ? 'tarefas' : 'recompensas'} importadas!`);
+                document.getElementById('import-sheets-data').value = '';
+                this.renderChildren();
+                Kanban.render();
+                Rewards.render();
+            } else {
+                this.showToast(`❌ Erro: ${result.error}`, 'error');
+            }
+        });
+
+        // Download template CSV
+        document.getElementById('download-template-btn').addEventListener('click', () => {
+            const type = document.getElementById('import-sheets-type').value;
+            const csv = this.getSheetTemplate(type);
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `kanban-kids-template-${type}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            this.showToast('📥 Template baixado!');
+        });
+
+        // Mostrar/ocultar formato esperado
+        document.getElementById('open-template-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            const info = document.getElementById('sheets-template-info');
+            if (info.style.display === 'none') {
+                const type = document.getElementById('import-sheets-type').value;
+                info.innerHTML = this.getTemplateInfoHtml(type);
+                info.style.display = 'block';
+            } else {
+                info.style.display = 'none';
+            }
+        });
+
+        // Atualiza info ao mudar tipo
+        document.getElementById('import-sheets-type').addEventListener('change', () => {
+            const info = document.getElementById('sheets-template-info');
+            if (info.style.display !== 'none') {
+                const type = document.getElementById('import-sheets-type').value;
+                info.innerHTML = this.getTemplateInfoHtml(type);
+            }
+        });
+    },
+
+    // === Importação Google Sheets ===
+    
+    /**
+     * Importa dados colados de uma planilha (TSV - tab separated)
+     */
+    importFromSheets(type, rawData) {
+        try {
+            // Detecta separador (tab ou ;)
+            const separator = rawData.includes('\t') ? '\t' : ';';
+            const lines = rawData.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            if (lines.length < 2) {
+                return { success: false, error: 'Precisa ter cabeçalho + pelo menos 1 linha de dados.' };
+            }
+
+            // Primeira linha é o cabeçalho
+            const headers = lines[0].split(separator).map(h => h.trim().toLowerCase());
+            const rows = lines.slice(1).map(line => {
+                const values = line.split(separator).map(v => v.trim());
+                const obj = {};
+                headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+                return obj;
+            });
+
+            switch (type) {
+                case 'children':
+                    return this.importChildrenFromRows(rows);
+                case 'tasks':
+                    return this.importTasksFromRows(rows);
+                case 'rewards':
+                    return this.importRewardsFromRows(rows);
+                default:
+                    return { success: false, error: 'Tipo inválido.' };
+            }
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    },
+
+    importChildrenFromRows(rows) {
+        const children = Storage.getChildren();
+        let count = 0;
+
+        for (const row of rows) {
+            const name = row['nome'] || row['name'] || '';
+            if (!name) continue;
+
+            const emoji = row['emoji'] || row['avatar'] || '🧒';
+            const color = row['cor'] || row['color'] || '#6c5ce7';
+
+            // Verifica se já existe pelo nome
+            const exists = children.find(c => c.name.toLowerCase() === name.toLowerCase());
+            if (exists) continue;
+
+            children.push({
+                id: 'child_' + Date.now() + '_' + count,
+                name,
+                emoji,
+                color: color.startsWith('#') ? color : '#6c5ce7',
+                totalPoints: parseInt(row['pontos'] || row['points'] || '0') || 0,
+                weeklyPoints: 0,
+                tasksCompleted: 0,
+                streak: 0,
+                medals: [],
+                categoryCount: {},
+                lastActivityDate: null
+            });
+            count++;
+        }
+
+        Storage.saveChildren(children);
+        return { success: true, count };
+    },
+
+    importTasksFromRows(rows) {
+        const tasks = Storage.getTasks();
+        const children = Storage.getChildren();
+        let count = 0;
+        let skippedNoChild = 0;
+
+        // Se não tem criança cadastrada, não pode importar tarefas
+        if (children.length === 0) {
+            return { success: false, error: 'Cadastre pelo menos uma criança antes de importar tarefas.' };
+        }
+
+        // Criança padrão (primeira cadastrada) para quando o responsável não é informado
+        const defaultChild = children[0];
+
+        for (const row of rows) {
+            const title = row['titulo'] || row['título'] || row['title'] || row['tarefa'] || '';
+            if (!title) continue;
+
+            const childName = row['responsavel'] || row['responsável'] || row['crianca'] || row['criança'] || row['child'] || '';
+            let child = null;
+
+            if (childName) {
+                child = children.find(c => c.name.toLowerCase() === childName.toLowerCase());
+            }
+            
+            // Se não encontrou pelo nome, usa a criança padrão
+            if (!child) {
+                child = defaultChild;
+            }
+
+            const category = this.normalizeCategory(row['categoria'] || row['category'] || 'casa');
+            const points = parseInt(row['pontos'] || row['points'] || '10') || 10;
+            const description = row['descricao'] || row['descrição'] || row['description'] || '';
+            const status = this.normalizeStatus(row['status'] || 'todo');
+
+            tasks.push({
+                id: 'task_' + Date.now() + '_' + count,
+                title,
+                description,
+                childId: child.id,
+                points,
+                category,
+                status,
+                createdAt: new Date().toISOString()
+            });
+            count++;
+        }
+
+        Storage.saveTasks(tasks);
+        return { success: true, count };
+    },
+
+    importRewardsFromRows(rows) {
+        const rewards = Storage.getRewards();
+        let count = 0;
+
+        for (const row of rows) {
+            const name = row['nome'] || row['name'] || row['recompensa'] || '';
+            if (!name) continue;
+
+            const cost = parseInt(row['custo'] || row['pontos'] || row['cost'] || row['points'] || '50') || 50;
+            const emoji = row['emoji'] || row['icone'] || row['ícone'] || '🎁';
+
+            // Verifica se já existe pelo nome
+            const exists = rewards.find(r => r.name.toLowerCase() === name.toLowerCase());
+            if (exists) continue;
+
+            rewards.push({
+                id: 'reward_' + Date.now() + '_' + count,
+                name,
+                cost,
+                emoji
+            });
+            count++;
+        }
+
+        Storage.saveRewards(rewards);
+        return { success: true, count };
+    },
+
+    normalizeCategory(cat) {
+        const map = {
+            'casa': 'casa', 'home': 'casa', '🏠': 'casa',
+            'estudos': 'estudos', 'estudo': 'estudos', 'study': 'estudos', '📚': 'estudos',
+            'higiene': 'higiene', 'hygiene': 'higiene', '🦷': 'higiene',
+            'exercicios': 'exercicios', 'exercício': 'exercicios', 'exercícios': 'exercicios', 'exercise': 'exercicios', '🏃': 'exercicios',
+            'boas-acoes': 'boas-acoes', 'boas acoes': 'boas-acoes', 'boas ações': 'boas-acoes', 'boas-ações': 'boas-acoes', '❤️': 'boas-acoes'
+        };
+        return map[cat.toLowerCase()] || 'casa';
+    },
+
+    normalizeStatus(status) {
+        const map = {
+            'a fazer': 'todo', 'todo': 'todo', 'pendente': 'todo', '📋': 'todo',
+            'fazendo': 'doing', 'doing': 'doing', 'em andamento': 'doing', '🚀': 'doing',
+            'concluido': 'done', 'concluído': 'done', 'done': 'done', 'feito': 'done', '✅': 'done',
+            'validado': 'validated', 'validated': 'validated', '🏆': 'validated'
+        };
+        return map[status.toLowerCase()] || 'todo';
+    },
+
+    /**
+     * Gera template CSV para download
+     */
+    getSheetTemplate(type) {
+        switch (type) {
+            case 'children':
+                return 'Nome;Emoji;Cor;Pontos\nSofia;👧;#e84393;0\nJoão;👦;#0984e3;0\nAyla;👧;#6c5ce7;0';
+            case 'tasks':
+                return [
+                    'Título;Descrição;Responsável;Pontos;Categoria;Status',
+                    // 🏠 Casa
+                    'Arrumar a cama;Deixar travesseiro e lençol organizados;;10;Casa;A Fazer',
+                    'Guardar brinquedos;Colocar tudo no lugar antes de dormir;;10;Casa;A Fazer',
+                    'Arrumar o quarto;Organizar roupas, mesa e chão;;15;Casa;A Fazer',
+                    'Colocar roupa suja no cesto;Após trocar de roupa;;5;Casa;A Fazer',
+                    'Ajudar a pôr a mesa;Pratos, talheres e copos;;10;Casa;A Fazer',
+                    'Ajudar a tirar a mesa;Levar pratos para a pia;;10;Casa;A Fazer',
+                    'Guardar compras;Ajudar a organizar as compras do mercado;;15;Casa;A Fazer',
+                    'Regar as plantas;Cuidar das plantas da casa;;10;Casa;A Fazer',
+                    'Dobrar roupas;Ajudar a dobrar roupas limpas;;15;Casa;A Fazer',
+                    'Varrer o quarto;Manter o quarto limpo;;15;Casa;A Fazer',
+                    // 📚 Estudos
+                    'Fazer lição de casa;Completar todas as atividades do dia;;15;Estudos;A Fazer',
+                    'Ler 20 minutos;Qualquer livro ou gibi;;15;Estudos;A Fazer',
+                    'Praticar tabuada;Treinar multiplicação por 10 minutos;;10;Estudos;A Fazer',
+                    'Estudar para prova;Revisar matéria com antecedência;;20;Estudos;A Fazer',
+                    'Organizar mochila;Conferir materiais para o dia seguinte;;5;Estudos;A Fazer',
+                    'Praticar inglês;15 minutos de app ou exercício;;15;Estudos;A Fazer',
+                    'Fazer atividade extra;Exercícios além da lição;;20;Estudos;A Fazer',
+                    'Ler em voz alta;Praticar leitura por 10 minutos;;10;Estudos;A Fazer',
+                    // 🦷 Higiene
+                    'Escovar os dentes (manhã);Logo após acordar;;5;Higiene;A Fazer',
+                    'Escovar os dentes (noite);Antes de dormir;;5;Higiene;A Fazer',
+                    'Tomar banho sozinho(a);Lavar cabelo e corpo direitinho;;10;Higiene;A Fazer',
+                    'Lavar as mãos;Antes das refeições e ao chegar em casa;;5;Higiene;A Fazer',
+                    'Pentear o cabelo;Manter cabelo arrumado;;5;Higiene;A Fazer',
+                    'Cortar as unhas;Manter unhas curtas e limpas;;10;Higiene;A Fazer',
+                    'Usar fio dental;Pelo menos uma vez ao dia;;5;Higiene;A Fazer',
+                    // 🏃 Exercícios
+                    'Brincar ao ar livre;30 minutos de atividade física;;15;Exercícios;A Fazer',
+                    'Andar de bicicleta;Pedalar por 20 minutos;;15;Exercícios;A Fazer',
+                    'Fazer alongamento;5 minutos ao acordar;;10;Exercícios;A Fazer',
+                    'Pular corda;50 pulos sem parar;;10;Exercícios;A Fazer',
+                    'Jogar bola;20 minutos de futebol ou outro esporte;;15;Exercícios;A Fazer',
+                    'Dançar;Uma música inteira dançando;;10;Exercícios;A Fazer',
+                    'Nadar;Aula ou prática de natação;;20;Exercícios;A Fazer',
+                    // ❤️ Boas ações
+                    'Ajudar um irmão;Auxiliar com tarefa ou brincadeira;;15;Boas Ações;A Fazer',
+                    'Dizer obrigado;Agradecer pelo menos 3 vezes no dia;;5;Boas Ações;A Fazer',
+                    'Compartilhar brinquedo;Emprestar algo para alguém;;10;Boas Ações;A Fazer',
+                    'Fazer um elogio;Dizer algo gentil para alguém;;5;Boas Ações;A Fazer',
+                    'Ajudar vizinho ou colega;Fazer algo gentil por outra pessoa;;15;Boas Ações;A Fazer',
+                    'Cuidar do pet;Dar comida, água ou brincar com o animal;;10;Boas Ações;A Fazer',
+                    'Pedir desculpas;Reconhecer um erro e pedir perdão;;10;Boas Ações;A Fazer',
+                    'Abraçar alguém da família;Demonstrar carinho espontaneamente;;5;Boas Ações;A Fazer',
+                    'Doar brinquedo ou roupa;Separar algo para doação;;20;Boas Ações;A Fazer'
+                ].join('\n');
+            case 'rewards':
+                return 'Nome;Custo;Emoji\nEscolher sobremesa;50;🍰\nEscolher filme da noite;100;🎬\nSorvete;150;🍦\nPasseio especial;300;🎡\nBrinquedo pequeno;500;🧸\nDormir mais tarde (30min);80;🌙\nTempo extra de tela (30min);120;📱\nPedir delivery;200;🍕\nEscolher passeio do fim de semana;250;🗺️\nFesta do pijama;400;🎉';
+            default:
+                return '';
+        }
+    },
+
+    /**
+     * Gera HTML com informações do formato esperado
+     */
+    getTemplateInfoHtml(type) {
+        switch (type) {
+            case 'children':
+                return `
+                    <strong>📋 Formato para Crianças:</strong>
+                    <table>
+                        <tr><th>Nome</th><th>Emoji</th><th>Cor</th><th>Pontos</th></tr>
+                        <tr><td>Sofia</td><td>👧</td><td>#e84393</td><td>0</td></tr>
+                        <tr><td>João</td><td>👦</td><td>#0984e3</td><td>0</td></tr>
+                    </table>
+                    <p style="margin-top:8px;"><strong>Colunas aceitas:</strong> Nome, Emoji/Avatar, Cor/Color, Pontos/Points</p>
+                `;
+            case 'tasks':
+                return `
+                    <strong>📋 Formato para Tarefas:</strong>
+                    <table>
+                        <tr><th>Título</th><th>Descrição</th><th>Responsável</th><th>Pontos</th><th>Categoria</th><th>Status</th></tr>
+                        <tr><td>Arrumar a cama</td><td>Deixar organizado</td><td>Sofia</td><td>10</td><td>Casa</td><td>A Fazer</td></tr>
+                        <tr><td>Escovar dentes</td><td>Manhã e noite</td><td></td><td>5</td><td>Higiene</td><td>A Fazer</td></tr>
+                    </table>
+                    <p style="margin-top:8px;"><strong>Categorias:</strong> Casa, Estudos, Higiene, Exercícios, Boas Ações</p>
+                    <p><strong>Status:</strong> A Fazer, Fazendo, Concluído, Validado</p>
+                    <p><strong>💡 Dica:</strong> O campo Responsável é opcional. Se vazio, a tarefa será atribuída à primeira criança cadastrada. Você pode editar depois.</p>
+                    <p><strong>📥 Use "Baixar Template"</strong> para obter uma lista pronta com +35 tarefas comuns do dia a dia familiar.</p>
+                `;
+            case 'rewards':
+                return `
+                    <strong>📋 Formato para Recompensas:</strong>
+                    <table>
+                        <tr><th>Nome</th><th>Custo</th><th>Emoji</th></tr>
+                        <tr><td>Escolher sobremesa</td><td>50</td><td>🍰</td></tr>
+                        <tr><td>Sorvete</td><td>150</td><td>🍦</td></tr>
+                    </table>
+                    <p style="margin-top:8px;"><strong>Colunas aceitas:</strong> Nome/Recompensa, Custo/Pontos, Emoji/Ícone</p>
+                `;
+            default:
+                return '';
+        }
     },
 
     // === PWA ===

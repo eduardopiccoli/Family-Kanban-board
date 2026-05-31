@@ -123,10 +123,32 @@
             <h2>⚙️ Configurações</h2>
             <div class="settings-grid">
                 <div class="settings-card">
-                    <h3>💾 Backup</h3>
+                    <h3>💾 Backup JSON</h3>
                     <button class="btn btn-primary" id="export-btn">📤 Exportar JSON</button>
                     <button class="btn btn-secondary" id="import-btn">📥 Importar JSON</button>
                     <input type="file" id="import-file" accept=".json" hidden>
+                </div>
+                <div class="settings-card">
+                    <h3>📊 Importar via Google Planilhas</h3>
+                    <p class="settings-desc">Cole dados copiados de uma planilha Google (formato TSV com abas separadas por tab).</p>
+                    <div class="form-group">
+                        <label for="import-sheets-type">O que importar?</label>
+                        <select id="import-sheets-type">
+                            <option value="tasks">📋 Tarefas</option>
+                            <option value="children">👶 Crianças</option>
+                            <option value="rewards">🎁 Recompensas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="import-sheets-data">Colar dados da planilha</label>
+                        <textarea id="import-sheets-data" rows="6" placeholder="Cole aqui os dados copiados do Google Planilhas..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" id="import-sheets-btn">📋 Importar Planilha</button>
+                    <button class="btn btn-secondary" id="download-template-btn">📥 Baixar Template (.csv)</button>
+                    <p class="settings-desc" style="margin-top:12px;">
+                        <a href="#" id="open-template-link" style="color:var(--primary);font-weight:600;">📄 Ver formato esperado</a>
+                    </p>
+                    <div id="sheets-template-info" class="template-info" style="display:none;"></div>
                 </div>
                 <div class="settings-card">
                     <h3>🗑️ Dados</h3>
