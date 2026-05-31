@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Kanban Kids - Tarefas Divertidas</title>
+    <meta name="description" content="Quadro Kanban infantil com sistema de recompensas e gamificação">
+    <meta name="theme-color" content="#6c5ce7">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Confetti Canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <h1>🎮 Kanban Kids</h1>
+        </div>
+        <nav class="header-nav">
+            <button class="nav-btn active" data-view="kanban">📋 Quadro</button>
+            <button class="nav-btn" data-view="shop">🎁 Loja</button>
+            <button class="nav-btn" data-view="dashboard">📊 Dashboard</button>
+            <button class="nav-btn" data-view="settings">⚙️ Config</button>
+        </nav>
+        <div class="header-right">
+            <button id="theme-toggle" class="icon-btn" title="Alternar tema">🌙</button>
+            <button id="sound-toggle" class="icon-btn" title="Sons">🔊</button>
+        </div>
+    </header>
+
+    <!-- Children Selector Bar -->
+    <section class="children-bar" id="children-bar">
+        <div class="children-list" id="children-list"></div>
+        <button class="add-child-btn" id="add-child-btn">➕ Adicionar Criança</button>
+    </section>
+
+    <!-- Main Views -->
+    <main class="main-content">
+        <!-- Kanban View -->
+        <section class="view active" id="view-kanban">
+            <div class="kanban-header">
+                <h2>📋 Quadro de Tarefas</h2>
+                <button class="btn btn-primary" id="add-task-btn">➕ Nova Tarefa</button>
+            </div>
+            <div class="kanban-board" id="kanban-board">
+                <div class="kanban-column" data-status="todo">
+                    <div class="column-header">
+                        <h3>📋 A Fazer</h3>
+                        <span class="task-count" id="count-todo">0</span>
+                    </div>
+                    <div class="column-tasks" id="col-todo"></div>
+                </div>
+                <div class="kanban-column" data-status="doing">
+                    <div class="column-header">
+                        <h3>🚀 Fazendo</h3>
+                        <span class="task-count" id="count-doing">0</span>
+                    </div>
+                    <div class="column-tasks" id="col-doing"></div>
+                </div>
+                <div class="kanban-column" data-status="done">
+                    <div class="column-header">
+                        <h3>✅ Concluído</h3>
+                        <span class="task-count" id="count-done">0</span>
+                    </div>
+                    <div class="column-tasks" id="col-done"></div>
+                </div>
+                <div class="kanban-column" data-status="validated">
+                    <div class="column-header">
+                        <h3>🏆 Validado</h3>
+                        <span class="task-count" id="count-validated">0</span>
+                    </div>
+                    <div class="column-tasks" id="col-validated"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Shop View -->
+        <section class="view" id="view-shop">
+            <div class="shop-header">
+                <h2>🎁 Loja de Recompensas</h2>
+                <button class="btn btn-primary" id="add-reward-btn">➕ Nova Recompensa</button>
+            </div>
+            <div class="shop-grid" id="shop-grid"></div>
+            <div class="redeem-history">
+                <h3>📜 Histórico de Resgates</h3>
+                <div id="redeem-history-list"></div>
+            </div>
+        </section>
+
+        <!-- Dashboard View -->
+        <section class="view" id="view-dashboard">
+            <h2>📊 Dashboard</h2>
+            <div class="dashboard-grid">
+                <div class="dash-card ranking-card">
+                    <h3>🏆 Ranking</h3>
+                    <div id="ranking-list"></div>
+                </div>
+                <div class="dash-card medals-card">
+                    <h3>🏅 Medalhas</h3>
+                    <div id="medals-list"></div>
+                </div>
+                <div class="dash-card chart-card">
+                    <h3>📈 Tarefas por Semana</h3>
+                    <canvas id="chart-tasks"></canvas>
+                </div>
+                <div class="dash-card chart-card">
+                    <h3>💰 Pontos por Semana</h3>
+                    <canvas id="chart-points"></canvas>
+                </div>
+                <div class="dash-card chart-card">
+                    <h3>📂 Categorias Mais Executadas</h3>
+                    <canvas id="chart-categories"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings View -->
+        <section class="view" id="view-settings">
+            <h2>⚙️ Configurações</h2>
+            <div class="settings-grid">
+                <div class="settings-card">
+                    <h3>💾 Backup</h3>
+                    <button class="btn btn-primary" id="export-btn">📤 Exportar JSON</button>
+                    <button class="btn btn-secondary" id="import-btn">📥 Importar JSON</button>
+                    <input type="file" id="import-file" accept=".json" hidden>
+                </div>
+                <div class="settings-card">
+                    <h3>🗑️ Dados</h3>
+                    <button class="btn btn-danger" id="reset-btn">🔄 Resetar Tudo</button>
+                </div>
+                <div class="settings-card">
+                    <h3>📱 PWA</h3>
+                    <button class="btn btn-primary" id="install-btn" style="display:none;">📲 Instalar App</button>
+                    <p id="install-msg">O app pode ser instalado na tela inicial do seu dispositivo.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal: Add/Edit Child -->
+    <div class="modal-overlay" id="modal-child">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>👶 Cadastrar Criança</h3>
+                <button class="modal-close" data-close="modal-child">✕</button>
+            </div>
+            <form id="form-child">
+                <div class="form-group">
+                    <label for="child-name">Nome</label>
+                    <input type="text" id="child-name" required placeholder="Nome da criança">
+                </div>
+                <div class="form-group">
+                    <label>Avatar / Emoji</label>
+                    <div class="emoji-picker" id="emoji-picker">
+                        <button type="button" class="emoji-opt" data-emoji="👧">👧</button>
+                        <button type="button" class="emoji-opt" data-emoji="👦">👦</button>
+                        <button type="button" class="emoji-opt" data-emoji="👶">👶</button>
+                        <button type="button" class="emoji-opt" data-emoji="🧒">🧒</button>
+                        <button type="button" class="emoji-opt" data-emoji="👸">👸</button>
+                        <button type="button" class="emoji-opt" data-emoji="🤴">🤴</button>
+                        <button type="button" class="emoji-opt" data-emoji="🦸">🦸</button>
+                        <button type="button" class="emoji-opt" data-emoji="🧙">🧙</button>
+                    </div>
+                    <input type="hidden" id="child-emoji" value="👧">
+                </div>
+                <div class="form-group">
+                    <label for="child-color">Cor de Identificação</label>
+                    <input type="color" id="child-color" value="#6c5ce7">
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add/Edit Task -->
+    <div class="modal-overlay" id="modal-task">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📝 Nova Tarefa</h3>
+                <button class="modal-close" data-close="modal-task">✕</button>
+            </div>
+            <form id="form-task">
+                <div class="form-group">
+                    <label for="task-title">Título</label>
+                    <input type="text" id="task-title" required placeholder="Ex: Arrumar a cama">
+                </div>
+                <div class="form-group">
+                    <label for="task-desc">Descrição</label>
+                    <textarea id="task-desc" placeholder="Detalhes da tarefa..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="task-child">Responsável</label>
+                    <select id="task-child" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="task-points">Pontos</label>
+                    <input type="number" id="task-points" min="1" max="100" value="10" required>
+                </div>
+                <div class="form-group">
+                    <label for="task-category">Categoria</label>
+                    <select id="task-category">
+                        <option value="casa">🏠 Casa</option>
+                        <option value="estudos">📚 Estudos</option>
+                        <option value="higiene">🦷 Higiene</option>
+                        <option value="exercicios">🏃 Exercícios</option>
+                        <option value="boas-acoes">❤️ Boas ações</option>
+                    </select>
+                </div>
+                <input type="hidden" id="task-id">
+                <button type="submit" class="btn btn-primary btn-full">Salvar Tarefa</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Reward -->
+    <div class="modal-overlay" id="modal-reward">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>🎁 Nova Recompensa</h3>
+                <button class="modal-close" data-close="modal-reward">✕</button>
+            </div>
+            <form id="form-reward">
+                <div class="form-group">
+                    <label for="reward-name">Nome da Recompensa</label>
+                    <input type="text" id="reward-name" required placeholder="Ex: Escolher sobremesa">
+                </div>
+                <div class="form-group">
+                    <label for="reward-cost">Custo em Pontos</label>
+                    <input type="number" id="reward-cost" min="1" value="50" required>
+                </div>
+                <div class="form-group">
+                    <label for="reward-emoji">Emoji / Ícone</label>
+                    <input type="text" id="reward-emoji" value="🎁" maxlength="4">
+                </div>
+                <input type="hidden" id="reward-id">
+                <button type="submit" class="btn btn-primary btn-full">Salvar Recompensa</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/storage.js"></script>
+    <script src="js/achievements.js"></script>
+    <script src="js/kanban.js"></script>
+    <script src="js/rewards.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
