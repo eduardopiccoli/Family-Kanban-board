@@ -44,7 +44,15 @@
         <section class="view active" id="view-kanban">
             <div class="kanban-header">
                 <h2>📋 Quadro de Tarefas</h2>
-                <button class="btn btn-primary" id="add-task-btn">➕ Nova Tarefa</button>
+                <div class="sprint-info" id="sprint-info">
+                    <span class="sprint-badge" id="sprint-badge">📅 Semana 1</span>
+                    <span class="sprint-dates" id="sprint-dates"></span>
+                    <span class="sprint-days-left" id="sprint-days-left"></span>
+                </div>
+                <div class="kanban-actions">
+                    <button class="btn btn-secondary" id="end-sprint-btn" title="Encerrar semana e iniciar nova sprint">🔄 Encerrar Semana</button>
+                    <button class="btn btn-primary" id="add-task-btn">➕ Nova Tarefa</button>
+                </div>
             </div>
             <div class="kanban-board" id="kanban-board">
                 <div class="kanban-column" data-status="todo">

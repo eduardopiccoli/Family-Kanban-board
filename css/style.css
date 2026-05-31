@@ -201,6 +201,15 @@ body {
     font-weight: 700;
 }
 
+.child-chip .chip-weekly {
+    background: var(--secondary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
 .child-chip .chip-level {
     font-size: 0.7rem;
     opacity: 0.8;
@@ -256,6 +265,42 @@ body {
 
 .kanban-header h2 {
     font-size: 1.5rem;
+}
+
+.kanban-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Sprint Info */
+.sprint-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: var(--bg-card);
+    padding: 8px 16px;
+    border-radius: 25px;
+    box-shadow: var(--shadow);
+}
+
+.sprint-badge {
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--primary);
+}
+
+.sprint-dates {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.sprint-days-left {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--secondary);
 }
 
 .kanban-board {
@@ -978,6 +1023,16 @@ body {
     .kanban-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+    
+    .sprint-info {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .kanban-actions {
+        width: 100%;
+        justify-content: space-between;
     }
 }
 

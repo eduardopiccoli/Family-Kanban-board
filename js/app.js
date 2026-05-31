@@ -99,6 +99,11 @@ const App = {
             this.openModal('modal-task');
         });
 
+        // Encerrar sprint semanal
+        document.getElementById('end-sprint-btn').addEventListener('click', () => {
+            Kanban.endSprint();
+        });
+
         document.getElementById('add-reward-btn').addEventListener('click', () => {
             document.getElementById('form-reward').reset();
             document.getElementById('reward-id').value = '';
@@ -235,7 +240,8 @@ const App = {
                      style="color: ${child.color}">
                     <span class="chip-emoji" onclick="App.selectChild('${child.id}')">${child.emoji}</span>
                     <span onclick="App.selectChild('${child.id}')">${child.name}</span>
-                    <span class="chip-points">⭐ ${child.totalPoints || 0}</span>
+                    <span class="chip-points" title="Pontos totais">⭐ ${child.totalPoints || 0}</span>
+                    <span class="chip-weekly" title="Pontos esta semana">📅 ${child.weeklyPoints || 0}</span>
                     <span class="chip-level">Nv.${level.level}</span>
                     <span class="chip-actions">
                         <button class="chip-action-btn" onclick="event.stopPropagation(); App.openEditChild('${child.id}')" title="Editar">✏️</button>

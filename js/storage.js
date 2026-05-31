@@ -10,7 +10,8 @@ const Storage = {
         REWARDS: 'kanban_kids_rewards',
         REDEEMS: 'kanban_kids_redeems',
         SETTINGS: 'kanban_kids_settings',
-        HISTORY: 'kanban_kids_history'
+        HISTORY: 'kanban_kids_history',
+        SPRINT: 'kanban_kids_sprint'
     },
 
     /**
@@ -100,6 +101,15 @@ const Storage = {
         this.saveHistory(history);
     },
 
+    // === Sprint ===
+    getSprint() {
+        return this.load(this.KEYS.SPRINT, null);
+    },
+
+    saveSprint(sprint) {
+        this.save(this.KEYS.SPRINT, sprint);
+    },
+
     // === Export/Import ===
     exportAll() {
         const data = {
@@ -110,7 +120,8 @@ const Storage = {
             rewards: this.getRewards(),
             redeems: this.getRedeems(),
             settings: this.getSettings(),
-            history: this.getHistory()
+            history: this.getHistory(),
+            sprint: this.getSprint()
         };
         return JSON.stringify(data, null, 2);
     },
@@ -126,6 +137,7 @@ const Storage = {
             if (data.redeems) this.saveRedeems(data.redeems);
             if (data.settings) this.saveSettings(data.settings);
             if (data.history) this.saveHistory(data.history);
+            if (data.sprint) this.saveSprint(data.sprint);
             
             return true;
         } catch (e) {

@@ -11,6 +11,161 @@ const Kanban = {
      */
     init() {
         this.setupDragAndDrop();
+        this.initSprint();
+        this.render();
+    },
+
+    /**
+     * Inicializa ou verifica a sprint semanal
+     */
+    initSprint() {
+        let sprint = Storage.getSprint();
+        
+        if (!sprint) {
+            sprint = this.createNewSprint(1);
+        } else {
+            // Verifica se a sprint expirou (passou de 7 dias)
+            const endDate = new Date(sprint.endDate);
+            const now = new Date();
+            if (now > endDate) {
+                // Sprint expirou automaticamente — encerra e cria nova
+                this.autoEndSprint(sprint);
+                return;
+            }
+        }
+
+        this.renderSprintInfo(sprint);
+    },
+
+    /**
+     * Cria uma nova sprint semanal
+     */
+    createNewSprint(number) {
+        const now = new Date();
+        // Início: segunda-feira da semana atual (ou hoje se for segunda)
+        const dayOfWeek = now.getDay(); // 0=dom, 1=seg...
+        const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        
+        const startDate = new Date(now);
+        startDate.setDate(now.getDate() + diffToMonday);
+        startDate.setHours(0, 0, 0, 0);
+        
+        // Fim: domingo da mesma semana
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+
+        const sprint = {
+            number,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            createdAt: now.toISOString()
+        };
+
+        Storage.saveSprint(sprint);
+        this.renderSprintInfo(sprint);
+        return sprint;
+    },
+
+    /**
+     * Renderiza informações da sprint no header
+     */
+    renderSprintInfo(sprint) {
+        const badge = document.getElementById('sprint-badge');
+        const dates = document.getElementById('sprint-dates');
+        const daysLeft = document.getElementById('sprint-days-left');
+
+        const start = new Date(sprint.startDate);
+        const end = new Date(sprint.endDate);
+        const now = new Date();
+        const remaining = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
+
+        badge.textContent = `📅 Semana ${sprint.number}`;
+        dates.textContent = `${start.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} — ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+        
+        if (remaining <= 1) {
+            daysLeft.textContent = '⚡ Último dia!';
+            daysLeft.style.color = 'var(--danger)';
+        } else {
+            daysLeft.textContent = `⏳ ${remaining} dias restantes`;
+            daysLeft.style.color = '';
+        }
+    },
+
+    /**
+     * Encerra a sprint automaticamente (quando expira)
+     */
+    autoEndSprint(oldSprint) {
+        this.finalizeSprint(oldSprint, true);
+    },
+
+    /**
+     * Encerra a sprint manualmente (botão)
+     */
+    endSprint() {
+        const sprint = Storage.getSprint();
+        if (!sprint) return;
+
+        if (!confirm('🔄 Encerrar a semana atual?\n\n• Tarefas validadas serão arquivadas\n• Tarefas não concluídas voltam para "A Fazer"\n• Uma nova semana será iniciada')) return;
+
+        this.finalizeSprint(sprint, false);
+    },
+
+    /**
+     * Finaliza a sprint: arquiva validadas, reseta pendentes, cria nova
+     */
+    finalizeSprint(oldSprint, isAuto) {
+        const tasks = Storage.getTasks();
+        const children = Storage.getChildren();
+
+        // Calcula pontos da semana por criança
+        const weeklyStats = {};
+        tasks.filter(t => t.status === 'validated').forEach(t => {
+            if (!weeklyStats[t.childId]) weeklyStats[t.childId] = { points: 0, tasks: 0 };
+            weeklyStats[t.childId].points += t.points;
+            weeklyStats[t.childId].tasks++;
+        });
+
+        // Registra no histórico
+        Storage.addHistoryEntry({
+            type: 'sprint_end',
+            sprintNumber: oldSprint.number,
+            startDate: oldSprint.startDate,
+            endDate: oldSprint.endDate,
+            stats: weeklyStats
+        });
+
+        // Reseta pontos semanais das crianças
+        children.forEach(child => {
+            child.weeklyPoints = 0;
+        });
+        Storage.saveChildren(children);
+
+        // Arquiva tarefas validadas (remove do board) e reseta as demais
+        const newTasks = [];
+        tasks.forEach(task => {
+            if (task.status === 'validated') {
+                // Arquivada — não volta ao board
+                return;
+            }
+            // Tarefas não concluídas voltam para "A Fazer"
+            task.status = 'todo';
+            newTasks.push(task);
+        });
+        Storage.saveTasks(newTasks);
+
+        // Cria nova sprint
+        const newSprint = this.createNewSprint(oldSprint.number + 1);
+
+        if (!isAuto) {
+            App.showConfetti();
+            App.showToast(`🎉 Semana ${oldSprint.number} encerrada! Nova semana iniciada.`);
+            App.playSound('levelup');
+        } else {
+            App.showToast(`📅 Nova semana iniciada automaticamente (Semana ${newSprint.number}).`);
+        }
+
+        App.renderChildren();
         this.render();
     },
 
