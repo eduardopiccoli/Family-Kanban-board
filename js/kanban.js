@@ -243,6 +243,18 @@ const Kanban = {
                         <button onclick="Kanban.deleteTask('${task.id}')" title="Remover">🗑️</button>
                     `;
                 }
+
+                // Select de status para mover tarefa (útil em mobile)
+                let statusSelectHtml = '';
+                if (status !== 'validated') {
+                    statusSelectHtml = `
+                        <select class="task-status-select" onchange="Kanban.changeTaskStatus('${task.id}', this.value)" title="Mover tarefa">
+                            <option value="todo" ${status === 'todo' ? 'selected' : ''}>📋 A Fazer</option>
+                            <option value="doing" ${status === 'doing' ? 'selected' : ''}>🚀 Fazendo</option>
+                            <option value="done" ${status === 'done' ? 'selected' : ''}>✅ Concluído</option>
+                        </select>
+                    `;
+                }
                 
                 return `
                     <div class="task-card" draggable="${status !== 'validated'}" 
@@ -258,10 +270,18 @@ const Kanban = {
                             <span class="task-child-badge" title="${child ? child.name : ''}">${childEmoji}</span>
                             <div class="task-actions">${actionsHtml}</div>
                         </div>
+                        ${statusSelectHtml}
                     </div>
                 `;
             }).join('');
         });
+    },
+
+    /**
+     * Altera status de uma tarefa via select (mobile-friendly)
+     */
+    changeTaskStatus(taskId, newStatus) {
+        this.moveTask(taskId, newStatus);
     },
 
     /**

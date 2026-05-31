@@ -171,6 +171,7 @@
                     <label for="child-color">Cor de Identificação</label>
                     <input type="color" id="child-color" value="#6c5ce7">
                 </div>
+                <input type="hidden" id="child-id">
                 <button type="submit" class="btn btn-primary btn-full">Salvar</button>
             </form>
         </div>
@@ -208,6 +209,14 @@
                         <option value="higiene">🦷 Higiene</option>
                         <option value="exercicios">🏃 Exercícios</option>
                         <option value="boas-acoes">❤️ Boas ações</option>
+                    </select>
+                </div>
+                <div class="form-group" id="task-status-group" style="display:none;">
+                    <label for="task-status">Status</label>
+                    <select id="task-status">
+                        <option value="todo">📋 A Fazer</option>
+                        <option value="doing">🚀 Fazendo</option>
+                        <option value="done">✅ Concluído</option>
                     </select>
                 </div>
                 <input type="hidden" id="task-id">

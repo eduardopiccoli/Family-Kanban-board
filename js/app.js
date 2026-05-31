@@ -83,6 +83,7 @@ const App = {
         // Botões de abrir
         document.getElementById('add-child-btn').addEventListener('click', () => {
             document.getElementById('form-child').reset();
+            document.getElementById('child-id').value = '';
             document.getElementById('child-emoji').value = '👧';
             document.querySelectorAll('.emoji-opt').forEach(e => e.classList.remove('selected'));
             document.querySelector('.emoji-opt[data-emoji="👧"]').classList.add('selected');
@@ -93,6 +94,7 @@ const App = {
             document.getElementById('form-task').reset();
             document.getElementById('task-id').value = '';
             document.getElementById('task-points').value = '10';
+            document.getElementById('task-status-group').style.display = 'none';
             this.populateChildSelect();
             this.openModal('modal-task');
         });
@@ -127,6 +129,7 @@ const App = {
         // Form Criança
         document.getElementById('form-child').addEventListener('submit', (e) => {
             e.preventDefault();
+            const childId = document.getElementById('child-id').value;
             const name = document.getElementById('child-name').value.trim();
             const emoji = document.getElementById('child-emoji').value;
             const color = document.getElementById('child-color').value;
@@ -134,25 +137,40 @@ const App = {
             if (!name) return;
 
             const children = Storage.getChildren();
-            children.push({
-                id: 'child_' + Date.now(),
-                name,
-                emoji,
-                color,
-                totalPoints: 0,
-                weeklyPoints: 0,
-                tasksCompleted: 0,
-                streak: 0,
-                medals: [],
-                categoryCount: {},
-                lastActivityDate: null
-            });
-            Storage.saveChildren(children);
+
+            if (childId) {
+                // Editar criança existente
+                const index = children.findIndex(c => c.id === childId);
+                if (index !== -1) {
+                    children[index].name = name;
+                    children[index].emoji = emoji;
+                    children[index].color = color;
+                    Storage.saveChildren(children);
+                    this.showToast(`${emoji} ${name} foi atualizado(a)!`);
+                }
+            } else {
+                // Nova criança
+                children.push({
+                    id: 'child_' + Date.now(),
+                    name,
+                    emoji,
+                    color,
+                    totalPoints: 0,
+                    weeklyPoints: 0,
+                    tasksCompleted: 0,
+                    streak: 0,
+                    medals: [],
+                    categoryCount: {},
+                    lastActivityDate: null
+                });
+                Storage.saveChildren(children);
+                this.showToast(`${emoji} ${name} foi adicionado(a)!`);
+            }
 
             this.closeModal('modal-child');
             this.renderChildren();
+            Kanban.render();
             this.playSound('add');
-            this.showToast(`${emoji} ${name} foi adicionado(a)!`);
         });
 
         // Form Tarefa
@@ -170,6 +188,9 @@ const App = {
             if (!taskData.title || !taskData.childId) return;
 
             if (taskId) {
+                // Ao editar, inclui o status selecionado
+                const newStatus = document.getElementById('task-status').value;
+                taskData.status = newStatus;
                 Kanban.editTask(taskId, taskData);
             } else {
                 Kanban.addTask(taskData);
@@ -211,12 +232,15 @@ const App = {
             
             return `
                 <div class="child-chip ${isActive ? 'active' : ''}" 
-                     style="color: ${child.color}"
-                     onclick="App.selectChild('${child.id}')">
-                    <span class="chip-emoji">${child.emoji}</span>
-                    <span>${child.name}</span>
+                     style="color: ${child.color}">
+                    <span class="chip-emoji" onclick="App.selectChild('${child.id}')">${child.emoji}</span>
+                    <span onclick="App.selectChild('${child.id}')">${child.name}</span>
                     <span class="chip-points">⭐ ${child.totalPoints || 0}</span>
                     <span class="chip-level">Nv.${level.level}</span>
+                    <span class="chip-actions">
+                        <button class="chip-action-btn" onclick="event.stopPropagation(); App.openEditChild('${child.id}')" title="Editar">✏️</button>
+                        <button class="chip-action-btn" onclick="event.stopPropagation(); App.deleteChild('${child.id}')" title="Remover">🗑️</button>
+                    </span>
                 </div>
             `;
         }).join('');
@@ -246,6 +270,52 @@ const App = {
             children.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
     },
 
+    // === Edição de Crianças ===
+    openEditChild(childId) {
+        const children = Storage.getChildren();
+        const child = children.find(c => c.id === childId);
+        if (!child) return;
+
+        document.getElementById('child-id').value = child.id;
+        document.getElementById('child-name').value = child.name;
+        document.getElementById('child-emoji').value = child.emoji;
+        document.getElementById('child-color').value = child.color;
+
+        // Marca o emoji correto
+        document.querySelectorAll('.emoji-opt').forEach(e => e.classList.remove('selected'));
+        const emojiBtn = document.querySelector(`.emoji-opt[data-emoji="${child.emoji}"]`);
+        if (emojiBtn) emojiBtn.classList.add('selected');
+
+        this.openModal('modal-child');
+    },
+
+    deleteChild(childId) {
+        const children = Storage.getChildren();
+        const child = children.find(c => c.id === childId);
+        if (!child) return;
+
+        if (!confirm(`Remover ${child.emoji} ${child.name}? As tarefas desta criança também serão removidas.`)) return;
+
+        // Remove criança
+        const updatedChildren = children.filter(c => c.id !== childId);
+        Storage.saveChildren(updatedChildren);
+
+        // Remove tarefas da criança
+        const tasks = Storage.getTasks().filter(t => t.childId !== childId);
+        Storage.saveTasks(tasks);
+
+        // Limpa seleção se era a criança selecionada
+        if (this.selectedChild === childId) {
+            this.selectedChild = null;
+            Kanban.clearFilter();
+        }
+
+        this.renderChildren();
+        Kanban.render();
+        this.playSound('delete');
+        this.showToast(`${child.emoji} ${child.name} foi removido(a).`);
+    },
+
     // === Edição ===
     openEditTask(taskId) {
         const tasks = Storage.getTasks();
@@ -258,6 +328,11 @@ const App = {
         document.getElementById('task-points').value = task.points;
         document.getElementById('task-category').value = task.category;
         
+        // Mostra seletor de status ao editar
+        const statusGroup = document.getElementById('task-status-group');
+        statusGroup.style.display = 'block';
+        document.getElementById('task-status').value = task.status;
+
         this.populateChildSelect();
         document.getElementById('task-child').value = task.childId;
         

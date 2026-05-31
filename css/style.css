@@ -982,6 +982,54 @@ body {
     background: var(--primary);
 }
 
+/* === Child Chip Actions === */
+.chip-actions {
+    display: flex;
+    gap: 2px;
+    margin-left: 4px;
+}
+
+.chip-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: var(--transition);
+    opacity: 0.6;
+}
+
+.chip-action-btn:hover {
+    opacity: 1;
+    transform: scale(1.2);
+    background: rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] .chip-action-btn:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+/* === Task Status Select (mobile) === */
+.task-status-select {
+    width: 100%;
+    margin-top: 10px;
+    padding: 6px 10px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-family: var(--font-main);
+    background: var(--bg-column);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.task-status-select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
 /* === Toast Notification === */
 .toast {
     position: fixed;
