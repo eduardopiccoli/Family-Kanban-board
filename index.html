@@ -50,6 +50,7 @@
                     <span class="sprint-days-left" id="sprint-days-left"></span>
                 </div>
                 <div class="kanban-actions">
+                    <button class="btn btn-secondary" id="sync-kanban-btn" title="Sincronizar tarefas do Google Planilhas" style="display:none;">🔄 Sync Planilha</button>
                     <button class="btn btn-secondary" id="end-sprint-btn" title="Encerrar semana e iniciar nova sprint">🔄 Encerrar Semana</button>
                     <button class="btn btn-primary" id="add-task-btn">➕ Nova Tarefa</button>
                 </div>
@@ -137,26 +138,40 @@
                     <input type="file" id="import-file" accept=".json" hidden>
                 </div>
                 <div class="settings-card">
-                    <h3>📊 Importar via Google Planilhas</h3>
-                    <p class="settings-desc">Cole dados copiados de uma planilha Google (formato TSV com abas separadas por tab).</p>
+                    <h3>📊 Google Planilhas</h3>
+                    <p class="settings-desc">Sincronize tarefas diretamente de uma planilha Google publicada. As tarefas serão atualizadas a cada sincronização.</p>
                     <div class="form-group">
-                        <label for="import-sheets-type">O que importar?</label>
-                        <select id="import-sheets-type">
-                            <option value="tasks">📋 Tarefas</option>
-                            <option value="children">👶 Crianças</option>
-                            <option value="rewards">🎁 Recompensas</option>
-                        </select>
+                        <label for="sheets-url">URL da planilha publicada</label>
+                        <input type="text" id="sheets-url" placeholder="https://docs.google.com/spreadsheets/d/e/.../pubhtml" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vTwtHz3EcyyZ3VCWXXbxlJf9cv_E8zsUqjJ_i9B91ecpJWePbKF0o5FSvArgsaAiHZvMYV_kKlkRGp6/pubhtml">
                     </div>
-                    <div class="form-group">
-                        <label for="import-sheets-data">Colar dados da planilha</label>
-                        <textarea id="import-sheets-data" rows="6" placeholder="Cole aqui os dados copiados do Google Planilhas..."></textarea>
+                    <div class="sync-actions">
+                        <button class="btn btn-primary" id="sync-sheets-btn">🔄 Sincronizar Agora</button>
+                        <button class="btn btn-secondary" id="save-sheets-url-btn">💾 Salvar URL</button>
                     </div>
-                    <button class="btn btn-primary" id="import-sheets-btn">📋 Importar Planilha</button>
-                    <button class="btn btn-secondary" id="download-template-btn">📥 Baixar Template (.csv)</button>
-                    <p class="settings-desc" style="margin-top:12px;">
-                        <a href="#" id="open-template-link" style="color:var(--primary);font-weight:600;">📄 Ver formato esperado</a>
-                    </p>
-                    <div id="sheets-template-info" class="template-info" style="display:none;"></div>
+                    <div class="sync-status" id="sync-status"></div>
+                    <details class="settings-details">
+                        <summary>📋 Importar colando dados manualmente</summary>
+                        <div style="margin-top:12px;">
+                            <div class="form-group">
+                                <label for="import-sheets-type">O que importar?</label>
+                                <select id="import-sheets-type">
+                                    <option value="tasks">📋 Tarefas</option>
+                                    <option value="children">👶 Crianças</option>
+                                    <option value="rewards">🎁 Recompensas</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="import-sheets-data">Colar dados da planilha</label>
+                                <textarea id="import-sheets-data" rows="6" placeholder="Cole aqui os dados copiados do Google Planilhas..."></textarea>
+                            </div>
+                            <button class="btn btn-primary" id="import-sheets-btn">📋 Importar</button>
+                            <button class="btn btn-secondary" id="download-template-btn">📥 Baixar Template (.csv)</button>
+                            <p class="settings-desc" style="margin-top:12px;">
+                                <a href="#" id="open-template-link" style="color:var(--primary);font-weight:600;">📄 Ver formato esperado</a>
+                            </p>
+                            <div id="sheets-template-info" class="template-info" style="display:none;"></div>
+                        </div>
+                    </details>
                 </div>
                 <div class="settings-card">
                     <h3>🗑️ Dados</h3>

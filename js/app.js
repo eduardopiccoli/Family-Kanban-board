@@ -659,7 +659,42 @@ const App = {
             }
         });
 
-        // === Google Sheets Import ===
+        // === Google Sheets Sync ===
+        
+        // Carrega URL salva
+        const savedSettings = Storage.getSettings();
+        if (savedSettings.sheetsUrl) {
+            document.getElementById('sheets-url').value = savedSettings.sheetsUrl;
+            document.getElementById('sync-kanban-btn').style.display = '';
+        }
+
+        // Salvar URL
+        document.getElementById('save-sheets-url-btn').addEventListener('click', () => {
+            const url = document.getElementById('sheets-url').value.trim();
+            const currentSettings = Storage.getSettings();
+            currentSettings.sheetsUrl = url;
+            Storage.saveSettings(currentSettings);
+            
+            if (url) {
+                document.getElementById('sync-kanban-btn').style.display = '';
+                this.showToast('💾 URL salva! Use "Sincronizar" para buscar tarefas.');
+            } else {
+                document.getElementById('sync-kanban-btn').style.display = 'none';
+                this.showToast('URL removida.');
+            }
+        });
+
+        // Sincronizar (botão na config)
+        document.getElementById('sync-sheets-btn').addEventListener('click', () => {
+            this.syncFromGoogleSheets();
+        });
+
+        // Sincronizar (botão no kanban)
+        document.getElementById('sync-kanban-btn').addEventListener('click', () => {
+            this.syncFromGoogleSheets();
+        });
+
+        // === Manual Import (colar dados) ===
         document.getElementById('import-sheets-btn').addEventListener('click', () => {
             const type = document.getElementById('import-sheets-type').value;
             const rawData = document.getElementById('import-sheets-data').value.trim();
@@ -719,26 +754,119 @@ const App = {
     },
 
     // === Importação Google Sheets ===
-    
+
     /**
-     * Importa dados colados de uma planilha (TSV - tab separated)
+     * Sincroniza tarefas diretamente de uma planilha Google publicada
+     */
+    async syncFromGoogleSheets() {
+        const settings = Storage.getSettings();
+        const url = settings.sheetsUrl || document.getElementById('sheets-url').value.trim();
+        
+        if (!url) {
+            this.showToast('❌ Configure a URL da planilha primeiro.', 'error');
+            return;
+        }
+
+        // Converte URL pubhtml para CSV export
+        const csvUrl = this.convertToCsvUrl(url);
+        if (!csvUrl) {
+            this.showToast('❌ URL inválida. Use a URL de publicação do Google Sheets.', 'error');
+            return;
+        }
+
+        const statusEl = document.getElementById('sync-status');
+        statusEl.innerHTML = '<span class="sync-loading">⏳ Buscando dados da planilha...</span>';
+
+        try {
+            const response = await fetch(csvUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const csvText = await response.text();
+            
+            if (!csvText || csvText.length < 10) {
+                throw new Error('Planilha vazia ou inacessível');
+            }
+
+            // Parse CSV (Google Sheets usa vírgula como separador no export)
+            const result = this.importFromSheets('tasks', csvText);
+            
+            if (result.success) {
+                const now = new Date().toLocaleString('pt-BR');
+                statusEl.innerHTML = `<span class="sync-success">✅ Sincronizado! ${result.count} tarefas importadas (${now})</span>`;
+                
+                // Salva data da última sincronização
+                const currentSettings = Storage.getSettings();
+                currentSettings.lastSync = new Date().toISOString();
+                Storage.saveSettings(currentSettings);
+                
+                this.renderChildren();
+                Kanban.render();
+                this.showToast(`🔄 ${result.count} tarefas sincronizadas da planilha!`);
+                this.playSound('add');
+            } else {
+                statusEl.innerHTML = `<span class="sync-error">❌ Erro: ${result.error}</span>`;
+                this.showToast(`❌ ${result.error}`, 'error');
+            }
+        } catch (error) {
+            statusEl.innerHTML = `<span class="sync-error">❌ Falha na conexão: ${error.message}</span>`;
+            this.showToast('❌ Não foi possível acessar a planilha. Verifique se está publicada.', 'error');
+        }
+    },
+
+    /**
+     * Converte URL do Google Sheets publicada para endpoint CSV
+     */
+    convertToCsvUrl(url) {
+        // Formatos aceitos:
+        // https://docs.google.com/spreadsheets/d/e/XXXXX/pubhtml
+        // https://docs.google.com/spreadsheets/d/e/XXXXX/pub?output=csv
+        // https://docs.google.com/spreadsheets/d/XXXXX/...
+        
+        let match;
+        
+        // Formato /d/e/KEY/pubhtml ou /d/e/KEY/pub
+        match = url.match(/spreadsheets\/d\/e\/([^/]+)/);
+        if (match) {
+            return `https://docs.google.com/spreadsheets/d/e/${match[1]}/pub?output=csv&gid=0`;
+        }
+        
+        // Formato /d/KEY/
+        match = url.match(/spreadsheets\/d\/([^/]+)/);
+        if (match) {
+            return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=0`;
+        }
+        
+        return null;
+    },
+
+    /**
+     * Importa dados colados de uma planilha (TSV/CSV)
      */
     importFromSheets(type, rawData) {
         try {
-            // Detecta separador (tab ou ;)
-            const separator = rawData.includes('\t') ? '\t' : ';';
-            const lines = rawData.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            // Detecta separador: tab, ponto-e-vírgula ou vírgula (CSV do Google)
+            let separator;
+            const firstLine = rawData.split('\n')[0];
+            if (firstLine.includes('\t')) {
+                separator = '\t';
+            } else if (firstLine.includes(';')) {
+                separator = ';';
+            } else {
+                separator = ',';
+            }
+            
+            // Parse CSV com suporte a campos entre aspas
+            const lines = this.parseCsvLines(rawData, separator);
             
             if (lines.length < 2) {
                 return { success: false, error: 'Precisa ter cabeçalho + pelo menos 1 linha de dados.' };
             }
 
             // Primeira linha é o cabeçalho
-            const headers = lines[0].split(separator).map(h => h.trim().toLowerCase());
-            const rows = lines.slice(1).map(line => {
-                const values = line.split(separator).map(v => v.trim());
+            const headers = lines[0].map(h => h.trim().toLowerCase());
+            const rows = lines.slice(1).map(values => {
                 const obj = {};
-                headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+                headers.forEach((h, i) => { obj[h] = (values[i] || '').trim(); });
                 return obj;
             });
 
@@ -755,6 +883,56 @@ const App = {
         } catch (e) {
             return { success: false, error: e.message };
         }
+    },
+
+    /**
+     * Parse CSV respeitando campos entre aspas (Google Sheets usa isso)
+     */
+    parseCsvLines(text, separator) {
+        const lines = [];
+        let current = [];
+        let field = '';
+        let inQuotes = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const next = text[i + 1];
+
+            if (inQuotes) {
+                if (char === '"' && next === '"') {
+                    field += '"';
+                    i++; // skip escaped quote
+                } else if (char === '"') {
+                    inQuotes = false;
+                } else {
+                    field += char;
+                }
+            } else {
+                if (char === '"') {
+                    inQuotes = true;
+                } else if (char === separator) {
+                    current.push(field);
+                    field = '';
+                } else if (char === '\n' || (char === '\r' && next === '\n')) {
+                    current.push(field);
+                    field = '';
+                    if (current.some(f => f.length > 0)) {
+                        lines.push(current);
+                    }
+                    current = [];
+                    if (char === '\r') i++; // skip \n after \r
+                } else {
+                    field += char;
+                }
+            }
+        }
+        // Last field/line
+        current.push(field);
+        if (current.some(f => f.length > 0)) {
+            lines.push(current);
+        }
+
+        return lines;
     },
 
     importChildrenFromRows(rows) {
@@ -793,10 +971,9 @@ const App = {
     },
 
     importTasksFromRows(rows) {
-        const tasks = Storage.getTasks();
+        let tasks = Storage.getTasks();
         const children = Storage.getChildren();
         let count = 0;
-        let skippedNoChild = 0;
 
         // Se não tem criança cadastrada, não pode importar tarefas
         if (children.length === 0) {
@@ -805,6 +982,14 @@ const App = {
 
         // Criança padrão (primeira cadastrada) para quando o responsável não é informado
         const defaultChild = children[0];
+
+        // Mapeia tarefas existentes por título (lowercase) para evitar duplicatas
+        const existingByTitle = new Map();
+        tasks.forEach(t => {
+            const key = t.title.toLowerCase().trim();
+            if (!existingByTitle.has(key)) existingByTitle.set(key, []);
+            existingByTitle.get(key).push(t);
+        });
 
         for (const row of rows) {
             const title = row['titulo'] || row['título'] || row['title'] || row['tarefa'] || '';
@@ -825,19 +1010,42 @@ const App = {
             const category = this.normalizeCategory(row['categoria'] || row['category'] || 'casa');
             const points = parseInt(row['pontos'] || row['points'] || '10') || 10;
             const description = row['descricao'] || row['descrição'] || row['description'] || '';
-            const status = this.normalizeStatus(row['status'] || 'todo');
+            const sheetStatus = this.normalizeStatus(row['status'] || 'todo');
 
-            tasks.push({
-                id: 'task_' + Date.now() + '_' + count,
-                title,
-                description,
-                childId: child.id,
-                points,
-                category,
-                status,
-                createdAt: new Date().toISOString()
-            });
-            count++;
+            // Verifica se já existe tarefa com mesmo título para essa criança
+            const key = title.toLowerCase().trim();
+            const existingList = existingByTitle.get(key) || [];
+            const existing = existingList.find(t => t.childId === child.id);
+
+            if (existing) {
+                // Atualiza dados da planilha (pontos, descrição, categoria)
+                existing.description = description;
+                existing.points = points;
+                existing.category = category;
+                // Só atualiza status se a tarefa ainda está em "todo" (não foi movida pelo usuário)
+                if (existing.status === 'todo' && sheetStatus !== 'todo') {
+                    existing.status = sheetStatus;
+                }
+                count++;
+            } else {
+                // Nova tarefa — adiciona
+                const newTask = {
+                    id: 'task_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    title,
+                    description,
+                    childId: child.id,
+                    points,
+                    category,
+                    status: sheetStatus,
+                    createdAt: new Date().toISOString(),
+                    fromSheet: true
+                };
+                tasks.push(newTask);
+                // Adiciona ao mapa para evitar duplicatas na mesma importação
+                if (!existingByTitle.has(key)) existingByTitle.set(key, []);
+                existingByTitle.get(key).push(newTask);
+                count++;
+            }
         }
 
         Storage.saveTasks(tasks);

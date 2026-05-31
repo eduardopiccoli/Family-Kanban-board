@@ -907,6 +907,58 @@ body {
     justify-content: center;
 }
 
+/* Sync Status */
+.sync-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.sync-actions .btn {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.sync-status {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    min-height: 24px;
+}
+
+.sync-loading {
+    color: var(--warning);
+    font-weight: 600;
+}
+
+.sync-success {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.sync-error {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* Settings Details */
+.settings-details {
+    margin-top: 16px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+.settings-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    padding: 8px 0;
+}
+
+.settings-details summary:hover {
+    color: var(--primary);
+}
+
 .settings-card p {
     font-size: 0.85rem;
     color: var(--text-secondary);
