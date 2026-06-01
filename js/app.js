@@ -784,7 +784,11 @@ const App = {
             try {
                 const response = await fetch(csvUrl, { redirect: 'follow' });
                 if (response.ok) {
-                    csvText = await response.text();
+                    const text = await response.text();
+                    // Verifica se é CSV real (não HTML de erro/redirect)
+                    if (text && text.length > 10 && !text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<html')) {
+                        csvText = text;
+                    }
                 }
             } catch (e) {
                 // CORS bloqueou — tenta via proxy
@@ -794,15 +798,19 @@ const App = {
             if (!csvText || csvText.length < 10) {
                 const proxyUrls = [
                     `https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`,
-                    `https://corsproxy.io/?${encodeURIComponent(csvUrl)}`
+                    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(csvUrl)}`
                 ];
 
                 for (const proxyUrl of proxyUrls) {
                     try {
                         const response = await fetch(proxyUrl);
                         if (response.ok) {
-                            csvText = await response.text();
-                            if (csvText && csvText.length > 10) break;
+                            const text = await response.text();
+                            // Verifica se é realmente CSV (não uma página de erro HTML)
+                            if (text && text.length > 10 && !text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<html')) {
+                                csvText = text;
+                                break;
+                            }
                         }
                     } catch (e) {
                         continue;
@@ -854,13 +862,13 @@ const App = {
         // Formato /d/e/KEY/pubhtml ou /d/e/KEY/pub
         match = url.match(/spreadsheets\/d\/e\/([^/]+)/);
         if (match) {
-            return `https://docs.google.com/spreadsheets/d/e/${match[1]}/pub?output=csv&gid=0`;
+            return `https://docs.google.com/spreadsheets/d/e/${match[1]}/pub?output=csv`;
         }
         
         // Formato /d/KEY/
         match = url.match(/spreadsheets\/d\/([^/]+)/);
         if (match) {
-            return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=0`;
+            return `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
         }
         
         return null;
