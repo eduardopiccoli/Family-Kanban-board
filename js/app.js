@@ -778,13 +778,40 @@ const App = {
         statusEl.innerHTML = '<span class="sync-loading">⏳ Buscando dados da planilha...</span>';
 
         try {
-            const response = await fetch(csvUrl);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            // Tenta fetch direto primeiro
+            let csvText = null;
             
-            const csvText = await response.text();
-            
+            try {
+                const response = await fetch(csvUrl, { redirect: 'follow' });
+                if (response.ok) {
+                    csvText = await response.text();
+                }
+            } catch (e) {
+                // CORS bloqueou — tenta via proxy
+            }
+
+            // Se fetch direto falhou, usa proxy CORS
             if (!csvText || csvText.length < 10) {
-                throw new Error('Planilha vazia ou inacessível');
+                const proxyUrls = [
+                    `https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`,
+                    `https://corsproxy.io/?${encodeURIComponent(csvUrl)}`
+                ];
+
+                for (const proxyUrl of proxyUrls) {
+                    try {
+                        const response = await fetch(proxyUrl);
+                        if (response.ok) {
+                            csvText = await response.text();
+                            if (csvText && csvText.length > 10) break;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+            }
+
+            if (!csvText || csvText.length < 10) {
+                throw new Error('Não foi possível acessar a planilha. Verifique se está publicada na web.');
             }
 
             // Parse CSV (Google Sheets usa vírgula como separador no export)
@@ -792,7 +819,7 @@ const App = {
             
             if (result.success) {
                 const now = new Date().toLocaleString('pt-BR');
-                statusEl.innerHTML = `<span class="sync-success">✅ Sincronizado! ${result.count} tarefas importadas (${now})</span>`;
+                statusEl.innerHTML = `<span class="sync-success">✅ Sincronizado! ${result.count} tarefas (${now})</span>`;
                 
                 // Salva data da última sincronização
                 const currentSettings = Storage.getSettings();
@@ -808,8 +835,8 @@ const App = {
                 this.showToast(`❌ ${result.error}`, 'error');
             }
         } catch (error) {
-            statusEl.innerHTML = `<span class="sync-error">❌ Falha na conexão: ${error.message}</span>`;
-            this.showToast('❌ Não foi possível acessar a planilha. Verifique se está publicada.', 'error');
+            statusEl.innerHTML = `<span class="sync-error">❌ ${error.message}</span>`;
+            this.showToast('❌ Falha na sincronização.', 'error');
         }
     },
 
