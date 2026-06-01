@@ -141,8 +141,13 @@
                     <h3>📊 Google Planilhas</h3>
                     <p class="settings-desc">Sincronize tarefas diretamente de uma planilha Google publicada. As tarefas serão atualizadas a cada sincronização.</p>
                     <div class="form-group">
-                        <label for="sheets-url">URL da planilha publicada</label>
+                        <label for="sheets-url">URL da planilha publicada (leitura)</label>
                         <input type="text" id="sheets-url" placeholder="https://docs.google.com/spreadsheets/d/e/.../pubhtml" value="https://docs.google.com/spreadsheets/d/e/2PACX-1vTwtHz3EcyyZ3VCWXXbxlJf9cv_E8zsUqjJ_i9B91ecpJWePbKF0o5FSvArgsaAiHZvMYV_kKlkRGp6/pubhtml">
+                    </div>
+                    <div class="form-group">
+                        <label for="script-url">URL do Apps Script (escrita)</label>
+                        <input type="text" id="script-url" placeholder="https://script.google.com/macros/s/.../exec">
+                        <p class="settings-desc">Permite gravar status na planilha. <a href="docs/GOOGLE_APPS_SCRIPT.md" target="_blank" style="color:var(--primary)">Ver instruções de configuração</a></p>
                     </div>
                     <div class="sync-actions">
                         <button class="btn btn-primary" id="sync-sheets-btn">🔄 Sincronizar Agora</button>

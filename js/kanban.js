@@ -219,6 +219,11 @@ const Kanban = {
         tasks[taskIndex] = task;
         Storage.saveTasks(tasks);
         
+        // Grava status na planilha Google
+        const children = Storage.getChildren();
+        const child = children.find(c => c.id === task.childId);
+        App.writeStatusToSheet(task.title, child ? child.name : '', newStatus);
+        
         // Registra no histórico
         Storage.addHistoryEntry({
             type: 'moved',
@@ -276,6 +281,9 @@ const Kanban = {
             
             children[childIndex] = child;
             Storage.saveChildren(children);
+            
+            // Grava status na planilha Google
+            App.writeStatusToSheet(task.title, child.name, 'validated');
             
             // Registra no histórico
             Storage.addHistoryEntry({

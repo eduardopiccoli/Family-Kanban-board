@@ -661,26 +661,31 @@ const App = {
 
         // === Google Sheets Sync ===
         
-        // Carrega URL salva
+        // Carrega URLs salvas
         const savedSettings = Storage.getSettings();
         if (savedSettings.sheetsUrl) {
             document.getElementById('sheets-url').value = savedSettings.sheetsUrl;
             document.getElementById('sync-kanban-btn').style.display = '';
         }
+        if (savedSettings.scriptUrl) {
+            document.getElementById('script-url').value = savedSettings.scriptUrl;
+        }
 
         // Salvar URL
         document.getElementById('save-sheets-url-btn').addEventListener('click', () => {
             const url = document.getElementById('sheets-url').value.trim();
+            const scriptUrl = document.getElementById('script-url').value.trim();
             const currentSettings = Storage.getSettings();
             currentSettings.sheetsUrl = url;
+            currentSettings.scriptUrl = scriptUrl;
             Storage.saveSettings(currentSettings);
             
             if (url) {
                 document.getElementById('sync-kanban-btn').style.display = '';
-                this.showToast('💾 URL salva! Use "Sincronizar" para buscar tarefas.');
+                this.showToast('💾 Configurações salvas!');
             } else {
                 document.getElementById('sync-kanban-btn').style.display = 'none';
-                this.showToast('URL removida.');
+                this.showToast('URLs removidas.');
             }
         });
 
@@ -872,6 +877,44 @@ const App = {
         }
         
         return null;
+    },
+
+    /**
+     * Envia atualização de status para a planilha via Apps Script
+     */
+    async writeStatusToSheet(taskTitle, childName, newStatus) {
+        const settings = Storage.getSettings();
+        const scriptUrl = settings.scriptUrl;
+        
+        if (!scriptUrl) return; // Escrita não configurada — ignora silenciosamente
+
+        // Mapeia status interno para texto da planilha
+        const statusMap = {
+            'todo': 'A Fazer',
+            'doing': 'Fazendo',
+            'done': 'Concluído',
+            'validated': 'Validado'
+        };
+
+        const statusText = statusMap[newStatus] || newStatus;
+
+        try {
+            await fetch(scriptUrl, {
+                method: 'POST',
+                mode: 'no-cors', // Apps Script não retorna CORS headers no POST
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({
+                    updates: [{
+                        title: taskTitle,
+                        child: childName,
+                        status: statusText
+                    }]
+                })
+            });
+        } catch (e) {
+            // Falha silenciosa — não bloqueia o uso do app
+            console.warn('Falha ao gravar na planilha:', e);
+        }
     },
 
     /**
